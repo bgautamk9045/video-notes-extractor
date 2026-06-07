@@ -1,0 +1,21 @@
+# Secrets — NEVER commit these
+.env
+*.key
+
+# Virtual environment
+venv/
+myenv/
+__pycache__/
+*.pyc
+*.pyo
+.Python
+
+# Project output files
+outputs/
+tmp/
+*.wav
+*.mp3
+*.mp4
+
+# VS Code settings
+.vscode/
