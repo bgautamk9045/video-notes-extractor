@@ -1,18 +1,31 @@
-# Core AI / ML
-openai-whisper
-openai>=1.30.0
-anthropic>=0.28.0
+# ─────────────────────────────────────────────────────────────
+#  Video Note Extractor — FREE / LOCAL dependencies
+#  Install with:  pip install -r requirements.txt
+# ─────────────────────────────────────────────────────────────
 
-# Audio & video processing
-ffmpeg-python>=0.2.0
-yt-dlp>=2024.5.1
+# ── Local Speech Recognition (Whisper runs on YOUR machine) ──
+openai-whisper          # Downloads model weights on first run (~140MB for base)
+                        # No API key, no account, completely offline
 
-# API server
+# ── Ollama Python client (talks to your local Ollama server) ──
+ollama                  # Thin client, Ollama server installed separately
+
+# ── Audio & video processing (both free, system tools) ────────
+ffmpeg-python>=0.2.0    # Python wrapper for ffmpeg (ffmpeg itself installed separately)
+yt-dlp>=2024.5.1        # YouTube downloader — completely free
+
+# ── FastAPI web server ─────────────────────────────────────────
 fastapi>=0.111.0
 uvicorn[standard]>=0.29.0
-python-multipart>=0.0.9
+python-multipart>=0.0.9  # Needed for file upload endpoint
 
-# Utilities
-pydantic>=2.7.0
-python-dotenv>=1.0.0
-numpy>=1.26.0
+# ── Utilities ──────────────────────────────────────────────────
+python-dotenv>=1.0.0     # Reads your .env file automatically
+pydantic>=2.7.0          # Data validation (used by FastAPI)
+numpy>=1.26.0            # Required by Whisper internally
+tqdm>=4.66.0             # Progress bars during download/processing
+
+# ── Optional: Speaker Diarisation (who spoke when) ────────────
+# Uncomment these two lines if you want speaker labels in transcript:
+# pyannote.audio>=3.1.1
+# torch>=2.0.0

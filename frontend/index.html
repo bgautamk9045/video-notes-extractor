@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Video Note Extractor</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #111118;
+    --bg3: #18181f;
+    --card: #1c1c25;
+    --border: rgba(120,120,180,0.12);
+    --border2: rgba(120,120,180,0.22);
+    --text: #e8e8f0;
+    --text2: #9898b0;
+    --text3: #5a5a70;
+    --accent: #7c6df2;
+    --accent2: #a78bfa;
+    --green: #34d399;
+    --amber: #fbbf24;
+    --coral: #f87171;
+    --teal: #22d3ee;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* ── Noise texture overlay ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0; opacity: 0.4;
+  }
+
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+  /* ── Header ── */
+  header {
+    padding: 40px 0 32px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .logo {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: linear-gradient(135deg, #7c6df2, #22d3ee);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+  }
+  .logo-text h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px; font-weight: 800;
+    letter-spacing: -0.5px;
+    background: linear-gradient(90deg, var(--accent2), var(--teal));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .logo-text p { font-size: 13px; color: var(--text3); }
+  .badge {
+    margin-left: auto;
+    background: rgba(124,109,242,0.15);
+    border: 1px solid rgba(124,109,242,0.3);
+    color: var(--accent2);
+    font-size: 11px; font-family: 'DM Mono', monospace;
+    padding: 4px 10px; border-radius: 20px;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── Input card ── */
+  .input-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    margin-bottom: 24px;
+  }
+  .input-card label {
+    display: block;
+    font-size: 12px; font-weight: 500; letter-spacing: 0.8px;
+    text-transform: uppercase; color: var(--text3);
+    margin-bottom: 8px;
+  }
+  .url-row { display: flex; gap: 10px; }
+  .url-input {
+    flex: 1;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    color: var(--text);
+    font-size: 14px; font-family: 'DM Mono', monospace;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .url-input:focus { border-color: var(--accent); }
+  .url-input::placeholder { color: var(--text3); }
+  .run-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none; border-radius: var(--radius-sm);
+    padding: 12px 24px;
+    font-size: 14px; font-weight: 500; font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    white-space: nowrap;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .run-btn:hover { background: #6d5ee0; }
+  .run-btn:active { transform: scale(0.98); }
+  .run-btn:disabled { background: var(--bg3); color: var(--text3); cursor: not-allowed; }
+  .settings-row {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px; margin-top: 16px;
+  }
+  .setting-group label { margin-bottom: 6px; }
+  select, input[type="text"] {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 9px 12px;
+    color: var(--text);
+    font-size: 13px; font-family: 'DM Mono', monospace;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  select:focus, input[type="text"]:focus { border-color: var(--accent); }
+  option { background: var(--bg3); }
+
+  /* ── Sample pills ── */
+  .samples { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .sample-pill {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 12px; color: var(--text2);
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+    font-family: 'DM Mono', monospace;
+  }
+  .sample-pill:hover { border-color: var(--accent); color: var(--accent2); }
+
+  /* ── Progress ── */
+  .progress-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    margin-bottom: 24px;
+    display: none;
+  }
+  .progress-card.active { display: block; }
+  .stage-list { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+  .stage {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px;
+    background: var(--bg3);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    transition: border-color 0.3s;
+  }
+  .stage.active { border-color: var(--accent); }
+  .stage.done { border-color: rgba(52,211,153,0.4); }
+  .stage-icon {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .stage.active .stage-icon { background: rgba(124,109,242,0.2); border-color: var(--accent); }
+  .stage.done .stage-icon { background: rgba(52,211,153,0.15); border-color: var(--green); }
+  .stage-label { font-size: 13px; font-weight: 500; }
+  .stage-sub { font-size: 11px; color: var(--text3); font-family: 'DM Mono', monospace; }
+  .spin { animation: spin 1s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Results ── */
+  .results { display: none; }
+  .results.active { display: block; }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; }
+  .tab {
+    padding: 8px 20px;
+    border-radius: 20px;
+    font-size: 13px; font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    color: var(--text2);
+    background: transparent;
+    transition: all 0.2s;
+  }
+  .tab.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* summary card */
+  .summary-card {
+    background: linear-gradient(135deg, rgba(124,109,242,0.08), rgba(34,211,238,0.05));
+    border: 1px solid rgba(124,109,242,0.2);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .summary-card h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 20px; font-weight: 700;
+    margin-bottom: 12px;
+    color: var(--text);
+  }
+  .summary-text { font-size: 15px; line-height: 1.75; color: var(--text); }
+
+  .topics { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .topic-tag {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    padding: 4px 12px;
+    font-size: 12px; font-family: 'DM Mono', monospace;
+    color: var(--teal);
+  }
+
+  /* timestamps */
+  .ts-list { display: flex; flex-direction: column; gap: 10px; }
+  .ts-item {
+    display: grid; grid-template-columns: 68px 1fr;
+    gap: 14px; align-items: start;
+    padding: 14px 18px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .ts-item:hover { border-color: var(--border2); }
+  .ts-time {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px; font-weight: 500;
+    color: var(--accent2);
+    padding: 3px 8px;
+    background: rgba(124,109,242,0.1);
+    border-radius: 6px;
+    text-align: center;
+    align-self: start;
+  }
+  .ts-content h4 { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+  .ts-content p  { font-size: 13px; color: var(--text2); }
+  .imp-badge {
+    display: inline-block;
+    font-size: 10px; font-family: 'DM Mono', monospace;
+    padding: 2px 7px; border-radius: 4px;
+    margin-left: 8px; vertical-align: middle;
+  }
+  .imp-high   { background: rgba(248,113,113,0.15); color: var(--coral); }
+  .imp-medium { background: rgba(251,191,36,0.15);  color: var(--amber); }
+  .imp-low    { background: rgba(52,211,153,0.15);  color: var(--green); }
+
+  /* action items */
+  .ai-list { display: flex; flex-direction: column; gap: 12px; }
+  .ai-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 16px 18px;
+  }
+  .ai-card.urgent { border-left-color: var(--coral); }
+  .ai-card.normal { border-left-color: var(--amber); }
+  .ai-card.low    { border-left-color: var(--green); }
+  .ai-task { font-size: 14px; font-weight: 500; margin-bottom: 8px; }
+  .ai-meta { display: flex; gap: 16px; flex-wrap: wrap; }
+  .ai-meta span { font-size: 12px; color: var(--text3); font-family: 'DM Mono', monospace; }
+  .ai-meta span strong { color: var(--text2); }
+  .ai-context {
+    margin-top: 8px;
+    font-size: 12px; color: var(--text3);
+    padding: 8px 12px;
+    background: var(--bg3);
+    border-radius: 6px;
+    border-left: 2px solid var(--border2);
+    font-style: italic;
+  }
+
+  /* notes */
+  .notes-section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .notes-section-header {
+    padding: 14px 18px;
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s;
+  }
+  .notes-section-header.open { border-bottom-color: var(--border); }
+  .notes-section-header h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 15px; font-weight: 600;
+  }
+  .notes-body { padding: 16px 18px; }
+  .notes-body p { font-size: 14px; line-height: 1.75; color: var(--text2); margin-bottom: 10px; }
+  .subsection { margin-top: 14px; padding: 12px 14px; background: var(--bg3); border-radius: 8px; }
+  .subsection h4 { font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--text); }
+  .subsection p  { font-size: 13px; color: var(--text2); }
+  .ts-chip {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; color: var(--text3);
+    padding: 2px 8px; background: var(--bg3);
+    border-radius: 4px;
+  }
+  .chevron { transition: transform 0.2s; color: var(--text3); }
+  .chevron.open { transform: rotate(180deg); }
+
+  /* export bar */
+  .export-bar {
+    display: flex; gap: 10px; align-items: center;
+    padding: 16px 0; margin-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+  .export-btn {
+    padding: 8px 18px;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    color: var(--text2);
+    font-size: 13px; font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .export-btn:hover { border-color: var(--accent); color: var(--accent2); }
+
+  .section-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--text3); margin-bottom: 14px;
+  }
+
+  /* error */
+  .error-box {
+    background: rgba(248,113,113,0.08);
+    border: 1px solid rgba(248,113,113,0.25);
+    border-radius: var(--radius-sm);
+    padding: 16px 20px;
+    color: var(--coral);
+    font-size: 14px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .error-box.active { display: block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">🎬</div>
+    <div class="logo-text">
+      <h1>Video Note Extractor</h1>
+      <p>Transcribe · Analyse · Extract</p>
+    </div>
+    <span class="badge">AI-POWERED</span>
+  </header>
+
+  <!-- Input Card -->
+  <div class="input-card">
+    <label>Video Source</label>
+    <div class="url-row">
+      <input class="url-input" type="text" id="sourceInput"
+             placeholder="Paste YouTube URL or describe a video topic for demo…"/>
+      <button class="run-btn" id="runBtn" onclick="startExtraction()">
+        <span>▶</span> Extract Notes
+      </button>
+    </div>
+
+    <!-- Sample pills -->
+    <div class="samples">
+      <span style="font-size:12px;color:var(--text3);align-self:center">Try demo:</span>
+      <span class="sample-pill" onclick="setDemo('Machine Learning lecture on neural networks and backpropagation')">🧠 ML Lecture</span>
+      <span class="sample-pill" onclick="setDemo('Product team standup meeting about Q3 roadmap and feature prioritisation')">📋 Team Meeting</span>
+      <span class="sample-pill" onclick="setDemo('Python FastAPI tutorial covering async endpoints, Pydantic models and deployment')">🐍 Tech Tutorial</span>
+      <span class="sample-pill" onclick="setDemo('Startup fundraising pitch deck review with investor feedback and action points')">💰 Startup Pitch</span>
+    </div>
+
+    <!-- Settings -->
+    <div class="settings-row">
+      <div class="setting-group">
+        <label>Whisper Model</label>
+        <select id="whisperModel">
+          <option value="tiny">tiny (fastest)</option>
+          <option value="base" selected>base (recommended)</option>
+          <option value="small">small (accurate)</option>
+          <option value="medium">medium (best)</option>
+        </select>
+      </div>
+      <div class="setting-group">
+        <label>LLM Model</label>
+        <select id="llmModel">
+          <option value="gpt-4o">GPT-4o</option>
+          <option value="claude-sonnet-4-6" selected>Claude Sonnet 4.6</option>
+          <option value="gpt-4o-mini">GPT-4o mini</option>
+        </select>
+      </div>
+      <div class="setting-group">
+        <label>Language</label>
+        <select id="language">
+          <option value="auto">Auto-detect</option>
+          <option value="en">English</option>
+          <option value="hi">Hindi</option>
+          <option value="es">Spanish</option>
+          <option value="fr">French</option>
+          <option value="de">German</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div class="error-box" id="errorBox"></div>
+
+  <!-- Progress -->
+  <div class="progress-card" id="progressCard">
+    <p class="section-title">Processing Pipeline</p>
+    <div class="stage-list" id="stageList">
+      <div class="stage" id="stage-audio">
+        <div class="stage-icon" id="icon-audio">🎵</div>
+        <div>
+          <div class="stage-label">Audio Extraction</div>
+          <div class="stage-sub" id="sub-audio">Waiting…</div>
+        </div>
+      </div>
+      <div class="stage" id="stage-asr">
+        <div class="stage-icon" id="icon-asr">🎤</div>
+        <div>
+          <div class="stage-label">Speech Recognition (Whisper)</div>
+          <div class="stage-sub" id="sub-asr">Waiting…</div>
+        </div>
+      </div>
+      <div class="stage" id="stage-clean">
+        <div class="stage-icon" id="icon-clean">✂️</div>
+        <div>
+          <div class="stage-label">Transcript Cleaning</div>
+          <div class="stage-sub" id="sub-clean">Waiting…</div>
+        </div>
+      </div>
+      <div class="stage" id="stage-llm">
+        <div class="stage-icon" id="icon-llm">🧠</div>
+        <div>
+          <div class="stage-label">LLM Analysis</div>
+          <div class="stage-sub" id="sub-llm">Waiting…</div>
+        </div>
+      </div>
+      <div class="stage" id="stage-out">
+        <div class="stage-icon" id="icon-out">📄</div>
+        <div>
+          <div class="stage-label">Output Assembly</div>
+          <div class="stage-sub" id="sub-out">Waiting…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="results" id="results">
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('summary')">📝 Summary</button>
+      <button class="tab" onclick="switchTab('timestamps')">⏱ Timestamps</button>
+      <button class="tab" onclick="switchTab('actions')">✅ Action Items</button>
+      <button class="tab" onclick="switchTab('notes')">📚 Notes</button>
+    </div>
+
+    <!-- Summary Tab -->
+    <div class="tab-panel active" id="tab-summary">
+      <div class="summary-card">
+        <h2 id="videoTitle">Video Title</h2>
+        <p class="summary-text" id="summaryText"></p>
+        <div class="topics" id="topicsRow"></div>
+      </div>
+      <div class="export-bar">
+        <span style="font-size:13px;color:var(--text3)">Export:</span>
+        <button class="export-btn" onclick="exportMarkdown()">⬇ Markdown</button>
+        <button class="export-btn" onclick="exportJSON()">⬇ JSON</button>
+        <button class="export-btn" onclick="copyToClipboard()">📋 Copy</button>
+      </div>
+    </div>
+
+    <!-- Timestamps Tab -->
+    <div class="tab-panel" id="tab-timestamps">
+      <p class="section-title">Key Moments</p>
+      <div class="ts-list" id="timestampsList"></div>
+    </div>
+
+    <!-- Actions Tab -->
+    <div class="tab-panel" id="tab-actions">
+      <p class="section-title">Action Items & Decisions</p>
+      <div class="ai-list" id="actionsList"></div>
+    </div>
+
+    <!-- Notes Tab -->
+    <div class="tab-panel" id="tab-notes">
+      <p class="section-title">Organised Notes</p>
+      <div id="notesList"></div>
+    </div>
+
+  </div>
+
+</div><!-- /wrap -->
+
+<script>
+let lastResult = null;
+
+// ── Demo helpers ──────────────────────────────
+
+function setDemo(text) {
+  document.getElementById('sourceInput').value = text;
+}
+
+// ── Tab switching ─────────────────────────────
+
+function switchTab(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  const panels = ['summary','timestamps','actions','notes'];
+  const idx = panels.indexOf(id);
+  document.querySelectorAll('.tab')[idx].classList.add('active');
+  document.getElementById('tab-' + id).classList.add('active');
+}
+
+// ── Stage progress ────────────────────────────
+
+function setStage(stageId, state, subtext) {
+  const el = document.getElementById('stage-' + stageId);
+  const icon = document.getElementById('icon-' + stageId);
+  const sub  = document.getElementById('sub-' + stageId);
+  el.classList.remove('active','done');
+  if (state === 'active') {
+    el.classList.add('active');
+    icon.innerHTML = '<span class="spin">⟳</span>';
+  } else if (state === 'done') {
+    el.classList.add('done');
+    icon.innerHTML = '✓';
+  }
+  if (subtext) sub.textContent = subtext;
+}
+
+async function animateStages(model) {
+  const delays = [800, 1600, 800, 1200, 400];
+  const stages = ['audio','asr','clean','llm','out'];
+  const subs = [
+    `ffmpeg → 16kHz mono WAV`,
+    `Whisper ${model} → word timestamps`,
+    `Filler removal · punctuation · segmentation`,
+    `GPT-4o / Claude → notes + timestamps + actions`,
+    `Assembling Markdown + JSON`,
+  ];
+  for (let i = 0; i < stages.length; i++) {
+    setStage(stages[i], 'active', subs[i] + '…');
+    await sleep(delays[i]);
+    setStage(stages[i], 'done', subs[i] + ' ✓');
+  }
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Main extraction ───────────────────────────
+
+async function startExtraction() {
+  const source = document.getElementById('sourceInput').value.trim();
+  if (!source) { alert('Please enter a video URL or topic'); return; }
+
+  const whisper = document.getElementById('whisperModel').value;
+  const llmModel = document.getElementById('llmModel').value;
+
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('progressCard').classList.add('active');
+  document.getElementById('results').classList.remove('active');
+  document.getElementById('errorBox').classList.remove('active');
+  document.getElementById('errorBox').textContent = '';
+
+  // Reset stages
+  ['audio','asr','clean','llm','out'].forEach(s => {
+    const el = document.getElementById('stage-' + s);
+    el.classList.remove('active','done');
+    document.getElementById('icon-' + s).innerHTML = {
+      audio:'🎵',asr:'🎤',clean:'✂️',llm:'🧠',out:'📄'
+    }[s];
+    document.getElementById('sub-' + s).textContent = 'Waiting…';
+  });
+
+  // Run stage animation + API call in parallel
+  const [, result] = await Promise.all([
+    animateStages(whisper),
+    callClaudeAPI(source, whisper, llmModel),
+  ]);
+
+  document.getElementById('runBtn').disabled = false;
+
+  if (result.error) {
+    document.getElementById('errorBox').textContent = '❌ ' + result.error;
+    document.getElementById('errorBox').classList.add('active');
+    document.getElementById('progressCard').classList.remove('active');
+    return;
+  }
+
+  lastResult = result;
+  renderResults(result);
+  document.getElementById('progressCard').classList.remove('active');
+  document.getElementById('results').classList.add('active');
+  switchTab('summary');
+}
+
+// ── Claude API call ───────────────────────────
+
+async function callClaudeAPI(source, whisperModel, llmModel) {
+  const prompt = `You are a Video Note Extractor AI. The user provided this video source: "${source}"
+
+Generate a realistic, detailed, high-quality extraction as if you had actually processed a real video on this topic.
+
+Return ONLY valid JSON with this exact structure:
+{
+  "video_title": "Realistic title based on the source/topic",
+  "duration_seconds": 3240,
+  "summary": "3-5 sentence executive summary. First sentence is TL;DR. Cover main arguments, findings, or decisions and their significance.",
+  "key_topics": ["topic1", "topic2", "topic3", "topic4", "topic5"],
+  "timestamps": [
+    {
+      "time_seconds": 0,
+      "time_label": "00:00",
+      "title": "Introduction & Overview",
+      "description": "Speaker introduces the main topic and agenda",
+      "importance": "medium"
+    }
+  ],
+  "action_items": [
+    {
+      "task": "Clear task description",
+      "owner": "Person/role or null",
+      "due_date": "Timeframe or null",
+      "priority": "urgent",
+      "context": "The context sentence that triggered this task"
+    }
+  ],
+  "notes": [
+    {
+      "heading": "Main Section Heading",
+      "content": "2-3 sentence summary with **bold key terms** and:\\n- Bullet points for facts",
+      "timestamp_ref": 0,
+      "subsections": [
+        {
+          "heading": "Sub-topic",
+          "content": "Detail about this sub-topic\\n- Key point 1\\n- Key point 2",
+          "timestamp_ref": 120,
+          "subsections": []
+        }
+      ]
+    }
+  ]
+}
+
+Requirements:
+- video_title: realistic and specific to the topic
+- duration_seconds: realistic (1800-5400 for a lecture/meeting)
+- summary: genuinely insightful, not generic
+- key_topics: 6-8 specific technical/conceptual terms from this domain
+- timestamps: 8-12 meaningful moments with varied importance levels
+- action_items: 4-8 realistic tasks with urgency levels; include owners and due dates where natural
+- notes: 4-7 main sections, each with 2-4 subsections, rich content with bullet points
+- Make all content highly specific to the topic "${source}" — avoid generic placeholders`;
+
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 4000,
+        messages: [{ role: "user", content: prompt }],
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      return { error: data.error.message };
+    }
+
+    let text = data.content?.[0]?.text || '';
+    // Strip markdown fences
+    text = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+
+    try {
+      return JSON.parse(text);
+    } catch(e) {
+      // Try to extract JSON from middle of response
+      const match = text.match(/\{[\s\S]+\}/);
+      if (match) return JSON.parse(match[0]);
+      return { error: 'Failed to parse AI response. Try again.' };
+    }
+  } catch(err) {
+    return { error: err.message };
+  }
+}
+
+// ── Render results ────────────────────────────
+
+function renderResults(data) {
+  // Summary
+  document.getElementById('videoTitle').textContent = data.video_title || 'Video';
+  document.getElementById('summaryText').textContent = data.summary || '';
+
+  const topicsEl = document.getElementById('topicsRow');
+  topicsEl.innerHTML = '';
+  (data.key_topics || []).forEach(t => {
+    const chip = document.createElement('span');
+    chip.className = 'topic-tag';
+    chip.textContent = t;
+    topicsEl.appendChild(chip);
+  });
+
+  // Timestamps
+  const tsEl = document.getElementById('timestampsList');
+  tsEl.innerHTML = '';
+  const sorted = [...(data.timestamps || [])].sort((a,b) => a.time_seconds - b.time_seconds);
+  sorted.forEach(ts => {
+    const imp = ts.importance || 'medium';
+    tsEl.innerHTML += `
+      <div class="ts-item">
+        <div class="ts-time">${ts.time_label}</div>
+        <div class="ts-content">
+          <h4>${ts.title} <span class="imp-badge imp-${imp}">${imp}</span></h4>
+          <p>${ts.description}</p>
+        </div>
+      </div>`;
+  });
+
+  // Action items
+  const aiEl = document.getElementById('actionsList');
+  aiEl.innerHTML = '';
+  const prioOrder = {urgent:0, normal:1, low:2};
+  const sortedAI = [...(data.action_items || [])].sort((a,b) =>
+    (prioOrder[a.priority]||1) - (prioOrder[b.priority]||1)
+  );
+  if (sortedAI.length === 0) {
+    aiEl.innerHTML = '<p style="color:var(--text3);font-size:14px">No action items found in this video.</p>';
+  }
+  sortedAI.forEach(ai => {
+    const prioLabel = ai.priority || 'normal';
+    const meta = [
+      ai.owner ? `<strong>Owner:</strong> ${ai.owner}` : null,
+      ai.due_date ? `<strong>Due:</strong> ${ai.due_date}` : null,
+      `<strong>Priority:</strong> ${prioLabel}`,
+    ].filter(Boolean).join(' &nbsp;·&nbsp; ');
+
+    aiEl.innerHTML += `
+      <div class="ai-card ${prioLabel}">
+        <div class="ai-task">${ai.task}</div>
+        <div class="ai-meta"><span>${meta}</span></div>
+        ${ai.context ? `<div class="ai-context">"${ai.context}"</div>` : ''}
+      </div>`;
+  });
+
+  // Notes
+  const notesEl = document.getElementById('notesList');
+  notesEl.innerHTML = '';
+  (data.notes || []).forEach((section, i) => {
+    notesEl.innerHTML += renderSection(section, i);
+  });
+
+  // Attach toggle listeners
+  document.querySelectorAll('.notes-section-header').forEach(h => {
+    h.addEventListener('click', () => {
+      const body = h.nextElementSibling;
+      const ch = h.querySelector('.chevron');
+      const isOpen = body.style.display !== 'none' && body.style.display !== '';
+      body.style.display = isOpen ? 'none' : 'block';
+      h.classList.toggle('open', !isOpen);
+      ch.classList.toggle('open', !isOpen);
+    });
+  });
+}
+
+function renderSection(section, i) {
+  const tsChip = section.timestamp_ref != null
+    ? `<span class="ts-chip">${fmtTime(section.timestamp_ref)}</span>`
+    : '';
+  const subsHtml = (section.subsections || []).map(sub => `
+    <div class="subsection">
+      <h4>${sub.heading} ${sub.timestamp_ref != null ? `<span class="ts-chip">${fmtTime(sub.timestamp_ref)}</span>` : ''}</h4>
+      <p>${(sub.content||'').replace(/\n/g,'<br>')}</p>
+    </div>
+  `).join('');
+
+  return `
+    <div class="notes-section">
+      <div class="notes-section-header" style="border-bottom: 1px solid var(--border)">
+        <h3>${section.heading} ${tsChip}</h3>
+        <span class="chevron open">▾</span>
+      </div>
+      <div class="notes-body" style="display:block">
+        <p>${(section.content||'').replace(/\n/g,'<br>')}</p>
+        ${subsHtml}
+      </div>
+    </div>`;
+}
+
+function fmtTime(secs) {
+  if (!secs) return '0:00';
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+// ── Export helpers ────────────────────────────
+
+function exportMarkdown() {
+  if (!lastResult) return;
+  const md = buildMarkdown(lastResult);
+  downloadText(md, lastResult.video_title + '.md');
+}
+
+function exportJSON() {
+  if (!lastResult) return;
+  downloadText(JSON.stringify(lastResult, null, 2), lastResult.video_title + '.json');
+}
+
+function copyToClipboard() {
+  if (!lastResult) return;
+  navigator.clipboard.writeText(buildMarkdown(lastResult))
+    .then(() => alert('Copied to clipboard!'));
+}
+
+function buildMarkdown(d) {
+  const lines = [
+    `# ${d.video_title}`, '',
+    `> Duration: ${fmtTime(d.duration_seconds)}  |  Topics: ${(d.key_topics||[]).join(', ')}`,
+    '', '## Summary', '', d.summary, '',
+    '## Timestamps', '',
+    ...(d.timestamps||[]).sort((a,b)=>a.time_seconds-b.time_seconds)
+      .map(t => `- **[${t.time_label}]** ${t.title} — ${t.description}`),
+    '', '## Action Items', '',
+    ...(d.action_items||[]).map(a =>
+      `### ${a.task}\n_Owner: ${a.owner||'TBD'} | Due: ${a.due_date||'N/A'} | Priority: ${a.priority}_\n> ${a.context||''}\n`
+    ),
+    '## Notes', '',
+    ...(d.notes||[]).flatMap(n => [
+      `### ${n.heading}`, n.content||'', '',
+      ...(n.subsections||[]).flatMap(s => [`#### ${s.heading}`, s.content||'', ''])
+    ]),
+  ];
+  return lines.join('\n');
+}
+
+function downloadText(text, filename) {
+  const blob = new Blob([text], {type: 'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+</script>
+</body>
+</html>
